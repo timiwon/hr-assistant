@@ -1,33 +1,37 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 import { useUser } from "@/providers/SignedInUserProvider";
 import { useDBClient } from "@/providers/DBClientProvider";
-import { jobService } from "@/lib/services/jobService";
+import { JobService } from "@/lib/services/jobService";
 
 import type { Job } from "@/types/models";
+import { getErrorMessage } from "@/lib/utils";
 
 export function useJobs() {
     const { user } = useUser();
     const { dbClient } = useDBClient();
     const [jobs, setJobs] = useState<Job[]>([]);
+    const [jobsCount, setJobsCount] = useState<number | null>(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
 
-    const service = jobService(dbClient!);
+    const service = new JobService(dbClient!);
 
-    async function getListJob(page: number, perPage: number) {
+    async function loadJobs(page: number, perPage: number) {
         if (!user) {
             throw Error("User not authenticated")
         }
 
         setLoading(true);
+        setError(null);
         try {
-            const data = await service.getList(page, perPage);
+            const { data, count } = await service.getList(page, perPage);
             setJobs(data);
+            setJobsCount(count);
         } catch (err) {
-            setError(err instanceof Error ? err.message : "Failed to get jobs.");
+            setError(getErrorMessage(err, "Failed to get jobs."));
         } finally {
             setLoading(false);
         }
@@ -50,21 +54,32 @@ export function useJobs() {
         }
 
         setLoading(true);
+        setError(null);
         try {
             const result = await service.createJobWithDefaultData(params);
             setJobs((prev) => [result, ...prev]);
+            setJobsCount(jobsCount ? jobsCount + 1 : null);
         } catch(err) {
-            setError(err instanceof Error ? err.message : "Failed to create job.");
+            setError(getErrorMessage(err, "Failed to create job."));
         } finally {
             setLoading(false);
         }
     }
 
+    useEffect(() => {
+        if (!user) {
+            return;
+        }
+
+        loadJobs(1, 2);
+    }, [user, dbClient]);
+
     return {
         jobs,
+        jobsCount,
         loading,
         error,
         createJob,
-        getListJob
+        loadJobs
     };
 }

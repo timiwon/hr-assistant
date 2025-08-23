@@ -1,26 +1,8 @@
 import { Client, JobProcessStep } from "../../types/models";
+import BaseRepository from "@/lib/repositories/baseRepository";
 
-export const jobProcessStepRepository = (client: Client) => {
-    const table = client.from("job_process_steps");
-
-    return {
-        async create(
-            step: Omit<JobProcessStep, "id" | "created_at" | "updated_at">
-        ): Promise<JobProcessStep> {
-            try {
-                const {data, error} = await table
-                    .insert(step)
-                    .select()
-                    .single();
-                
-                if (error) {
-                    throw error;
-                }
-
-                return data;
-            } catch (err) {
-                throw err
-            }
-        }
+export class JobProcessStepRepository extends BaseRepository<JobProcessStep>{
+    constructor(client: Client) {
+        super(client, 'job_process_steps');
     }
-};
+}

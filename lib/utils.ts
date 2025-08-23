@@ -10,3 +10,7 @@ export const getPagination = (page: number, perPage: number) => {
   const endIndex = startIndex + perPage - 1;
   return { startIndex, endIndex };
 };
+
+export const getErrorMessage = (error: unknown, defaultMessage: string) => {
+  return error instanceof Error ? error.message : defaultMessage;
+};
