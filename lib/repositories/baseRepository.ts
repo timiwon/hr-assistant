@@ -1,74 +1,99 @@
-import { Client } from "@/types/models";
+import type { Client } from "@/providers/DBClientProvider";
+import type { Filter, IBaseRepository } from "@/types/repositories";
+
 import { getPagination } from "@/lib/utils";
 
-export type ListResponse<T> = {
-    data: T[],
-    count: number | null
+type SelectOption = {
+    head?: boolean,
+    count?: "exact" | "planned" | "estimated",
 }
 
-type Filter = {
-    column: string,
-    operation: string,
-    value: unknown
-}
+type OrderOption = {
+    ascending?: boolean | undefined,
+    nullsFirst?: boolean | undefined,
+    referencedTable?: undefined
+};
 
-export default abstract class BaseRepository<T> {
+export default abstract class BaseRepository<T> implements IBaseRepository<T> {
     protected table: string;
     protected client: Client;
-    private filters: Filter[];
     private select: string;
 
     constructor(client: Client, table: string) {
         this.client = client;
         this.table = table;
-        this.filters = [];
         this.select = '*';
-    }
-
-    setFilters(filters: Filter[]) {
-        this.filters = filters;
     }
 
     setSelect(select: string) {
         this.select = select;
+        return this;
     }
 
-    async getCount(): Promise<number | null> {
-        const query = this.client.from(this.table).select('*', {count: 'estimated', head: true});
-        this.filters.forEach((filter) => {
-            query.filter(filter.column, filter.operation, filter.value);
+    private buildFilters(filters: Filter[], isCounting = false) {
+        const selectOptions: SelectOption | undefined = isCounting ? {count: 'estimated', head: true} : undefined;
+        const select: string = isCounting ? 'id' : this.select; 
+        const query = this.client.from(this.table).select(select, selectOptions);
+
+        filters.forEach((filter) => {
+            if (filter.operation === 'order') {
+                query.order(filter.column, filter.value as OrderOption);
+            } else {
+                query.filter(filter.column, filter.operation, filter.value);
+            }
         });
 
-        const { count } = await query.overrideTypes();
-
-        return count;
+        return query;
     }
 
-    async getList(page: number, perPage: number): Promise<ListResponse<T>> {
+    async getCount(filters: Filter[]): Promise<number | null> {
         try {
-            const query = this.client.from(this.table).select(this.select);
+            const query = this.buildFilters(filters, true);
+            const { error, count } = await query.overrideTypes();
 
-            this.filters.forEach((filter) => {
-                query.filter(filter.column, filter.operation, filter.value);
-            });
+            if (error) {
+                throw error;
+            }
+
+            return count;
+        } catch (err) {
+            throw err;
+        }
+    }
+
+    async findById(id: string): Promise<T> {
+        try {
+            const { data, error } = await this.client
+                .from(this.table)
+                .select(this.select)
+                .eq('id', id)
+                .single();
+
+            if (error) {
+                throw error;
+            }
+
+            return data as T;
+        } catch (err) {
+            throw err;
+        }
+    }
+
+    async getList(filters: Filter[], page: number, perPage: number): Promise<T[]> {
+        try {
+            const query = this.buildFilters(filters);
 
             const { startIndex, endIndex } = getPagination(page, perPage);
             query.range(startIndex, endIndex)
                 .order('updated_at', {ascending: false});
             
-            const [ countResponse, dataResponse ] = await Promise.all([
-                this.getCount(),
-                query.overrideTypes<T[], {merge: false}>()
-            ]);
+            const { data, error } = await query.overrideTypes<T[], {merge: false}>();
 
-            if (dataResponse.error) {
-                throw dataResponse.error;
+            if (error) {
+                throw error;
             }
 
-            return {
-                data: dataResponse.data,
-                count: countResponse
-            };
+            return data
         } catch (err) {
             throw err;
         }
@@ -80,14 +105,39 @@ export default abstract class BaseRepository<T> {
         try {
             const {data, error} = await this.client.from(this.table)
                 .insert(params)
-                .select()
+                .select(this.select)
                 .single();
             
             if (error) {
                 throw error;
             }
 
-            return data;
+            return data as T;
+        } catch (err) {
+            throw err;
+        }
+    }
+
+    async update(
+        id: string,
+        updates: Partial<T>
+    ): Promise<T> {
+        try {
+            const {data, error} = await this.client
+                .from(this.table)
+                .update({
+                    ...updates,
+                    updated_at: new Date().toISOString()
+                })
+                .eq('id', id)
+                .select(this.select)
+                .single();
+            
+            if (error) {
+                throw error;
+            }
+
+            return data as T;
         } catch (err) {
             throw err;
         }

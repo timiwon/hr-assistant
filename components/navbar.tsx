@@ -1,17 +1,30 @@
 "use client";
 
+import Link from "next/link";
 import { SignInButton, SignUpButton, UserButton, useUser } from "@clerk/nextjs";
-import { ArrowRight, Bot } from "lucide-react";
+import { ArrowLeft, ArrowRight, Bot, Filter, MoreHorizontal } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { usePathname } from "next/navigation";
-import Link from "next/link";
+import { Badge } from "./ui/badge";
 
-export default function Navbar() {
+type NavbarProps = {
+    jobTitle?: string;
+    onEditJob?: () => void;
+
+    onFilterClick?: () => void;
+    filterCount?: number;
+}
+export default function Navbar({
+    jobTitle,
+    onEditJob,
+    onFilterClick,
+    filterCount = 0
+}: NavbarProps) {
     const {isSignedIn, user } = useUser();
     const pathName = usePathname();
 
     const isDashboardPage = pathName === '/dashboard';
-    //const isBoardPage = pathName.startsWith('/boards/');
+    const isJobPage = pathName.startsWith('/jobs/');
 
     if (isDashboardPage) {
         return (
@@ -27,6 +40,58 @@ export default function Navbar() {
                 </div>
             </header>
         );
+    }
+
+    if (isJobPage) {
+        return (
+            <header className="border-b bg-white sticky top-0 z-50">
+                <div className="container mx-auto px-4 py-3 sm:py-4">
+                    <div className="flex items-center justify-between">
+                        <div className="flex items-center space-x-2 sm:space-x-4 min-w-0">
+                            <Link href="/dashboard" className="flex items-center space-x-1 sm:space-x-2 text-gray-600 hover:text-gray-900">
+                                <ArrowLeft className="h-4 w-4 sm:h-5 sm:w-5"/>
+                                <span className="hidden sm:inline">Back to dashboard</span>
+                                <span className="sm:hidden">Back</span>
+                            </Link>
+                            <div className="h-4 sm:h-6 w-px bg-gray-300 hidden sm:block"/>
+                            <div className="flex items-center space-x-1 sm:space-x-2">
+                                <Bot className="text-blue-600" />
+                                <div className="items-center space-x-1 sm:space-x-2">
+                                    <span className="text-lg font-bold text-gray-600 truncate">{jobTitle}</span>
+                                    {onEditJob && (<Button
+                                        variant="ghost"
+                                        size="sm"
+                                        className="h-7 w-7"
+                                        onClick={onEditJob}
+                                    >
+                                        <MoreHorizontal />
+                                    </Button>)}
+                                </div>
+                            </div>
+                        </div>
+
+                        <div className="flex items-center space-x-2 sm:space-x-4">
+                            {onFilterClick && (
+                                <Button
+                                    variant="outline"
+                                    size="sm"
+                                    className={`text-xs sm:text-sm ${
+                                        filterCount > 0 ? "bg-blue-100 border-blue-200" : ""
+                                    }`}
+                                    onClick={onFilterClick}
+                                >
+                                    <Filter className="h-3 w-3 sm:h-4 sm:w-4 mr-1 sm:mr2"/>
+                                    <span className="hidden sm:inline">Filter</span>
+                                    {filterCount > 0 && (
+                                        <Badge variant="secondary" className="text-xs ml-1 sm:ml-2 bg-blue-100 border-blue-200">{filterCount}</Badge>
+                                    )}
+                                </Button>
+                            )}
+                        </div>
+                    </div>
+                </div>
+            </header>
+        )
     }
 
     return (

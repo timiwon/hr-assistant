@@ -6,7 +6,7 @@ create table public.jobs (
   priority character varying not null,
   title character varying not null,
   description text null,
-  candidate_amount smallint not null default '0'::smallint,
+  headcount smallint not null default '0'::smallint,
   organization_id bigint not null,
   domain_id bigint not null,
   constraint jobs_pkey primary key (id),

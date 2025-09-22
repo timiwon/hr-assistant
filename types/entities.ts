@@ -1,7 +1,3 @@
-import { SupabaseClient } from "@supabase/supabase-js";
-
-export type Client = SupabaseClient;
-
 export interface Organization {
     id: string;
     name: string;
@@ -43,7 +39,7 @@ export interface Job {
     priority: "low" | "medium" | "high";
     title: string;
     description: string | null;
-    candidate_amount: number;
+    headcount: number;
     organization_id: string;
     domain_id: string;
     created_at: string;
@@ -58,6 +54,10 @@ export interface JobProcessStep {
     job_id: string;
     created_at: string;
     updated_at: string;
+}
+
+export type  JobProcessStepWithCandidateProcessings = JobProcessStep & {
+    candidate_processings: CandidateProcessingWithCandidate[];
 }
 
 export interface CandidateTitle {
@@ -81,14 +81,22 @@ export interface Candidate {
     updated_at: string;
 }
 
+export type CandidateProcessingStatus = "processing" | "done" | "failed";
+
 export interface CandidateProcessing {
     id: string;
     candidate_id: string;
     job_process_step_id: string;
-    status: "processing" | "done" | "failed";
+    status: CandidateProcessingStatus;
     note: string | null;
+    due_date: string | null;
+    sort_order: number;
     created_at: string;
     updated_at: string;
+}
+export type CandidateProcessingWithCandidate = CandidateProcessing & {
+    job_process_steps: JobProcessStep;
+    candidate: Candidate;
 }
 
 export interface CandidateJobResult {

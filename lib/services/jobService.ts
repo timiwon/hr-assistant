@@ -1,31 +1,91 @@
 import type { 
-    Client,
+    Organization,
     Job,
     JobProcessStep,
-} from "@/types/models";
+    JobProcessStepWithCandidateProcessings,
+} from "@/types/entities";
+import type {
+    Filter,
+    ICandidateProcessingRepository,
+    IJobProcessStepRepository,
+    IJobRepository,
+    IOrganizationProcessStepRepository,
+    IOrganizationRepository,
+} from "@/types/repositories";
+import type { IJobService } from "@/types/services";
+import type {
+    Client
+} from "@/providers/DBClientProvider";
 
-import { OrganizationRepository } from "@/lib/repositories/organizationRepository";
-import { OrganizationProcessStepRepository } from "@/lib/repositories/organizationProcessStepRepository";
-import { JobRepository } from "@/lib/repositories/jobRepository";
-import { JobProcessStepRepository } from "@/lib/repositories/jobProcessStepRepository";
+import { FactoryRepository } from "@/lib/repositories/factoryRepository";
 
-export class JobService {
-    private jobRepo: JobRepository;
-    private jobProcessStepRepo: JobProcessStepRepository;
-    private organizationProcessStepRepo: OrganizationProcessStepRepository;
-    private organizationRepo: OrganizationRepository;
+export class JobService implements IJobService {
+    private jobRepo: IJobRepository;
+    private jobProcessStepRepo: IJobProcessStepRepository;
+    private organizationProcessStepRepo: IOrganizationProcessStepRepository;
+    private organizationRepo: IOrganizationRepository;
+    private candidateProcessRepo: ICandidateProcessingRepository;
 
     constructor(client: Client) {
-        this.jobRepo = new JobRepository(client);
-        this.organizationProcessStepRepo = new OrganizationProcessStepRepository(client);
-        this.organizationRepo = new OrganizationRepository(client);
-        this.jobProcessStepRepo = new JobProcessStepRepository(client);
+        const factory = new FactoryRepository(client);
+        this.jobRepo = factory.createJob();
+        this.organizationProcessStepRepo = factory.createOrganizationProcessStep();
+        this.organizationRepo = factory.createOrganization();
+        this.jobProcessStepRepo = factory.createJobProcessStep();
+        this.candidateProcessRepo = factory.createCandidateProcessing();
     }
 
-    async getList(page: number, perPage: number): Promise<{ data: Job[], count: number | null }> {
+    async getCount(filters: Filter[]): Promise<number | null> {
         try {
-            const { data, count } = await this.jobRepo.getList(page, perPage);
-            return { data, count };
+            return await this.jobRepo.getCount(filters);
+        } catch (err) {
+            throw err;
+        }
+    }
+
+    async getList(filters: Filter[], page: number, perPage: number): Promise<Job[]> {
+        try {
+            return await this.jobRepo.getList(filters, page, perPage);
+        } catch (err) {
+            throw err;
+        }
+    }
+
+    async getJobWithSteps(jobId: string): Promise<{
+        job: Job,
+        steps: JobProcessStepWithCandidateProcessings[]
+    }> {
+        try {
+            const stepFilters: Filter[] = [{
+                column: 'job_id',
+                operation: 'eq',
+                value: jobId
+            }, {
+                column: 'sort_order',
+                operation: 'order',
+                value: {
+                    ascending: true
+                }
+            }];
+            const [job, steps, processings] = await Promise.all([
+                this.jobRepo.findById(jobId),
+                this.jobProcessStepRepo.getList(stepFilters, 1, 100),
+                this.candidateProcessRepo.getListByJobId(jobId)
+            ]);
+
+            const stepsWithProcessing = steps.map((step) => ({
+                ...step,
+                candidate_processings: processings.filter((processing) => processing.job_process_step_id === step.id)
+            }));
+
+            if (!job) {
+                throw new Error("Job not found");
+            }
+
+            return {
+                job,
+                steps: stepsWithProcessing
+            };
         } catch (err) {
             throw err;
         }
@@ -33,16 +93,8 @@ export class JobService {
 
     async createJobWithDefaultData(
         data: {
-            organization: {
-                name: string,
-                description: string | null,
-            },
-            job: {
-                title: string,
-                description: string | null,
-                priority: "low" | "medium" | "high",
-                candidate_amount: number
-            },
+            organization: Omit<Organization, "id" | "created_at" | "updated_at" | "owner_id">,
+            job: Omit<Job, "id" | "created_at" | "updated_at" | "owner_id">
         },
     ): Promise<Job> {
         // TODO: need a transaction excute
@@ -101,6 +153,15 @@ export class JobService {
                 )
             ));
 
+            return job;
+        } catch (err) {
+            throw err;
+        }
+    }
+
+    async updateJob (jobId: string, data: Partial<Job>): Promise<Job> {
+        try {
+            const job = await this.jobRepo.update(jobId, {...data});
             return job;
         } catch (err) {
             throw err;

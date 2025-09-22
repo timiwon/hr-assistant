@@ -1,10 +1,12 @@
 "use client";
 
 import React, { createContext, useContext, useEffect, useState } from 'react';
+import { SupabaseClient } from "@supabase/supabase-js";
 
-import type { Client } from '@/types/models';
 import { createClient } from '@/integrations/supabase/client';
 import { useUser } from '@/providers/SignedInUserProvider';
+
+export type Client = SupabaseClient;
 
 type ClientContext = {
     dbClient: Client | null;
